@@ -5,10 +5,52 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  firstName String
+  lastName  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Stores the "Keys" to the legacy APIs
+model ExternalCredential {
+  id            String    @id @default(uuid())
+  name          String    // e.g., "Shopify Key"
+  encryptedData String    // Encrypted API key
+  iv            String    // AES Initialization Vector
+  type          String    // 'bearer', 'api_key', etc.
+  pollJobs      PollJob[]
+}
+
+// The Watcher configurations
+model PollJob {
+  id              String             @id @default(uuid())
+  credentialId    String?
+  credential      ExternalCredential? @relation(fields: [credentialId], references: [id])
+  sourceUrl       String             // Legacy API to poll
+  jsonPath        String             // Field to watch (e.g., "status")
+  currentState    Json?              // Last known value stored here
+  pollingInterval Int                @default(60) 
+  webhookUrl      String             // Where to send the notification
+  status          String             @default("active")
+  logs            WebhookLog[]
+}
+
+// Audit logs to see what the worker is doing
+model WebhookLog {
+  id           String   @id @default(uuid())
+  jobId        String
+  job          PollJob  @relation(fields: [jobId], references: [id])
+  firedAt      DateTime @default(now())
+  responseCode Int
+  payload      Json
 }
